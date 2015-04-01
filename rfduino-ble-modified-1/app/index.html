@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html>
+<!--
+This is an example app that demonstrates how to control an
+RFduino RFD22102 board using BLE (Bluetooth Low Energy).
+
+Please note that this example requires an RFduino RFD22102 plus
+and RFduino RGB LED Button shield (RFD22122). In addition, an
+RFduino USB shield (RFD22121) is needed for programming the
+RFduino from a PC or Mac.
+
+Thomas Olson teo20150307.01 
+Add full support for the RFD22122 RGB LED Button shield.
+Since Buttons are expected to be monitored all the time don't
+give option to subscribe/unsubcribe. Just subscribe all the time.
+Thomas Olson teo20150308.02
+Change format of packet to get and show status of LEDs along with
+Buttons from an RFduino with RGB Button Shield.
+
+-->
+<head>
+
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, user-scalable=no
+		initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0" />
+
+	<title>RFduino evoRGBv3</title>
+
+	<style>
+		@import 'ui/css/evothings-app.css';
+	</style>
+
+	<style>
+	div {
+		margin: 10px 0px;
+	}
+	button {
+		margin: 5px 0px;
+	}
+	.lead {
+		font-weight: bold;
+	}
+	</style>
+
+	<script>
+	// Redirect console.log to Evothings Workbench.
+	if (window.hyper && window.hyper.log) { console.log = hyper.log }
+	</script>
+
+	<script src="cordova.js"></script>
+	<script src="libs/jquery/jquery.js"></script>
+	<script src="libs/evothings/evothings.js"></script>
+	<script src="libs/evothings/rfduinoble/rfduinoble.js"></script>
+
+</head>
+
+<body>
+
+	<header>
+		<button class="back" onclick="history.back()">
+			<img src="ui/images/arrow-left.svg" />
+		</button>
+
+		<img class="logotype" src="ui/images/logo.svg" alt="Evothings" />
+
+		<!--<button class="menu" onclick=""><img src="ui/images/menu.svg" /></button>-->
+	</header>
+
+	<h1>Smart Razor Stroke Counter</h1>
+	<p id="info" class="lead">Initializing...</p>
+
+<table>
+<tr><td>
+	<button id="connect" type="button" class="yellow" onclick="app.connect()">
+		Connect to razor
+	</button>
+
+	<button id="disconnect" type="button" class="yellow" onclick="app.disconnect()">
+		Disconnect from razor
+	</button>
+</td></tr>
+
+</table>
+
+	<h2>Instructions</h2>
+	<p>Number above indicates number of strokes counted
+	</p>
+
+	<!-- TODO: Image is missing.
+	<p><img src="RFduino_Image.png" style="max-height:30%;" /></p>
+	-->
+
+	<!-- JavaScript code for the app -->
+
+	<script>
+	
+	//$("#connect").hide();
+	$("#disconnect").hide();
+	
+	
+	// Short name for RFduino BLE library.
+	var rfduinoble = evothings.rfduinoble;
+
+	// Application object.
+	var app = {};
+	var flutter = 0;
+	// Connected device.
+	app.device = null;
+
+	
+
+
+	app.showMessage = function(info)
+	{
+		document.getElementById("info").innerHTML = info;
+	};
+
+	// Called when BLE and other native functions are available.
+	app.onDeviceReady = function()
+	{
+		app.showMessage('Press the yellow button to connect');
+		$("#connect").show();
+	};
+
+	app.connect = function()
+	{
+		console.log("close");
+		rfduinoble.close();
+
+		// Wait 500 ms for close to complete before connecting.
+		setTimeout(function()
+		{
+			console.log("connecting");
+			app.showMessage("Connecting...");
+			rfduinoble.connect(
+				"RFduino",
+				function(device)
+				{
+					console.log("connected");
+					app.showMessage("Connected");
+					app.device = device;
+					app.subscribe();
+					$("#connect").hide();
+					$("#disconnect").show();
+
+				},
+				function(errorCode)
+				{
+					app.showMessage("Connect error: " + errorCode);
+				});
+			},
+			500);
+	};
+
+	app.disconnect = function()
+	{
+		rfduinoble.close();
+		app.showMessage('Press the yellow button to connect');
+		$("#disconnect").hide();
+		$("#connect").show();
+
+
+	}
+
+
+        app.subscribe = function()
+        {
+
+                // Turn notifications on.
+                app.device.writeDescriptor(
+                        '00002221-0000-1000-8000-00805f9b34fb',                 
+                        '00002902-0000-1000-8000-00805f9b34fb',
+                        new Uint8Array([1,0]),
+                        function(data){
+                                app.showMessage('Write Descriptor');
+                        },
+                        function(errorCode)
+                        {
+                                app.showMessage("Connect error: " + errorCode);
+                        }
+
+                );
+                
+                app.device.enableNotification(
+                        '00002221-0000-1000-8000-00805f9b34fb',
+                        function(data){
+				
+                                app.showMessage([new DataView(data).getUint16(0, true)]);
+         },
+         function(errorCode)
+         {
+            app.showMessage("Connect error: " + errorCode);
+         }
+                );
+                        
+        };
+
+        app.unsubscribe = function()
+        {
+
+                // Turn notifications on.
+                app.device.writeDescriptor(
+                        '00002221-0000-1000-8000-00805f9b34fb',                 
+                        '00002902-0000-1000-8000-00805f9b34fb',
+                        new Uint8Array([0,0]),
+                        function(data){
+                                app.showMessage('Disable Notification');
+                        },
+                        function(errorCode)
+                        {
+                                app.showMessage("Connect error: " + errorCode);
+                        }
+
+                );
+                
+                app.device.disableNotification(
+                        '00002221-0000-1000-8000-00805f9b34fb',
+                        function(data){
+                                app.showMessage('Disable Notifications ' + data);
+                        },
+                        function(errorCode)
+                        {
+                                app.showMessage("Connect error: " + errorCode);
+                        }
+                );
+
+                        
+        };
+        
+        
+	
+	function setBackgroundColor(color)
+	{
+		document.documentElement.style.background = color
+		document.body.style.background = color
+	}
+
+
+	// When the app is fully loaded the "deviceready" event is triggered.
+	document.addEventListener("deviceready", app.onDeviceReady, false);
+	</script>
+
+<!--img src="http://s.rocketronix.com/C.jpg" width="1" height="1" alt=""-->
+</body>
+</html>
